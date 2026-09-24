@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Servo Bench</title>
+<meta name="description" content="A portable live servo-calibration panel for any PCA9685/ESP32 project -- drag sliders, find safe ranges, copy the finished page straight into your firmware.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#eef1ee; --panel:#ffffff; --line:#d7ded8; --ink:#152019; --muted:#5c6b62;
+  --accent:#1f9d5c; --accent-ink:#04150b; --accent2:#2f7dc4; --warn:#b4791c; --danger:#c13f35;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d1210; --panel:#151d19; --line:#293530; --ink:#e9f2ec; --muted:#8a9c92;
+    --accent:#3ddc84; --accent-ink:#04150b; --accent2:#5aa9e6; --warn:#e2a94f; --danger:#e2645a;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d1210; --panel:#151d19; --line:#293530; --ink:#e9f2ec; --muted:#8a9c92;
+  --accent:#3ddc84; --accent-ink:#04150b; --accent2:#5aa9e6; --warn:#e2a94f; --danger:#e2645a;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{font:15px/1.5 var(--sans); padding:18px 16px 40px}
+h1,h2,h3{font-family:var(--sans); text-wrap:balance; margin:0}
+.wrap{max-width:720px; margin:0 auto; display:flex; flex-direction:column; gap:14px}
+
+header{display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap}
+header h1{font-size:20px; font-weight:700; letter-spacing:-0.01em}
+header .tag{font-family:var(--mono); font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em}
+
+.card{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px}
+.card + .card{margin-top:0}
+.section-title{font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--muted); margin:0 0 10px; font-weight:600}
+
+/* connection bar */
+.conn{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+.conn input[type=text]{flex:1; min-width:160px}
+input[type=text],input[type=number]{
+  background:var(--bg); color:var(--ink); border:1px solid var(--line); border-radius:8px;
+  padding:9px 10px; font:14px var(--mono); width:100%;
+}
+input[type=text]:focus,input[type=number]:focus{outline:2px solid var(--accent2); outline-offset:-1px}
+.btn{
+  font:600 13px var(--sans); border:0; border-radius:8px; padding:10px 14px; cursor:pointer;
+  background:var(--accent2); color:#fff; white-space:nowrap;
+}
+.btn:active{filter:brightness(.88)}
+.btn.primary{background:var(--accent); color:var(--accent-ink)}
+.btn.ghost{background:transparent; color:var(--ink); border:1px solid var(--line)}
+.btn.danger{background:var(--danger); color:#fff}
+.dot{width:9px; height:9px; border-radius:50%; background:var(--muted); flex:none}
+.dot.ok{background:var(--accent); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent)}
+.dot.bad{background:var(--danger); box-shadow:0 0 0 3px color-mix(in srgb, var(--danger) 25%, transparent)}
+.connlabel{font:12px var(--mono); color:var(--muted)}
+
+/* channel controls */
+#channels{display:flex; flex-direction:column}
+.ch-row{display:grid; grid-template-columns:74px 1fr 52px; gap:10px; align-items:center; padding:11px 0; border-bottom:1px solid var(--line)}
+.ch-row:last-child{border-bottom:0}
+.ch-row .chname{
+  font:600 13px var(--mono); background:transparent; border:1px solid transparent; border-radius:6px;
+  padding:5px 4px; color:var(--accent2); width:100%;
+}
+.ch-row .chname:focus{border-color:var(--line); background:var(--bg); outline:none}
+.ch-row input[type=range]{width:100%; accent-color:var(--accent)}
+.ch-row .val{font:600 14px var(--mono); text-align:right; font-variant-numeric:tabular-nums}
+.ch-row .range-edit{grid-column:1 / -1; display:flex; gap:8px; align-items:center; padding:2px 0 0 74px}
+.range-edit label{font:11px var(--sans); color:var(--muted)}
+.range-edit input{width:56px; padding:5px 6px; font-size:12px}
+
+.rowline{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+.rowline .grow{flex:1; min-width:120px}
+
+.status-log{
+  font:12px var(--mono); color:var(--muted); background:var(--bg); border:1px solid var(--line);
+  border-radius:8px; padding:9px 10px; min-height:18px; white-space:pre-wrap; word-break:break-word;
+}
+.status-log.err{color:var(--danger)}
+.status-log.ok{color:var(--accent)}
+
+details{border:1px solid var(--line); border-radius:14px; background:var(--panel); overflow:hidden}
+details summary{cursor:pointer; padding:14px 16px; font:600 14px var(--sans); list-style:none}
+details summary::-webkit-details-marker{display:none}
+details summary::after{content:'+'; float:right; color:var(--muted); font-weight:400}
+details[open] summary::after{content:'\2212'}
+details .body{padding:0 16px 16px; font-size:13.5px; color:var(--muted); line-height:1.6}
+details .body p{margin:0 0 10px}
+details .body code{font:12.5px var(--mono); background:var(--bg); padding:1px 5px; border-radius:4px; color:var(--ink)}
+pre{
+  font:12px/1.55 var(--mono); background:var(--bg); border:1px solid var(--line); border-radius:10px;
+  padding:12px; overflow-x:auto; color:var(--ink); margin:8px 0 0;
+}
+footer{text-align:center; color:var(--muted); font:11px var(--mono); padding-top:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Servo Bench</h1>
+    <span class="tag">PCA9685 / ESP32 calibration panel</span>
+  </header>
+
+  <div class="card">
+    <p class="section-title">Device</p>
+    <div class="conn">
+      <input type="text" id="baseUrl" placeholder="Leave blank if this page is served BY the device itself" autocomplete="off">
+      <button class="btn ghost" id="checkBtn">Check</button>
+    </div>
+    <div class="rowline" style="margin-top:10px">
+      <span class="dot" id="connDot"></span>
+      <span class="connlabel" id="connLabel">Not checked yet</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="rowline" style="margin-bottom:12px">
+      <p class="section-title" style="margin:0; flex:1">Channels</p>
+      <button class="btn ghost" id="addCh">+ Add channel</button>
+      <button class="btn ghost" id="resetCh">Reset to 8</button>
+    </div>
+    <div id="channels"></div>
+  </div>
+
+  <div class="status-log" id="log">Ready. Drag a slider to send a live angle.</div>
+
+  <details id="howto">
+    <summary>How this tool works, and how to reuse it</summary>
+    <div class="body">
+      <p><strong>The contract.</strong> This page only ever sends one request per move: <code>GET {base}/servo?ch=&lt;n&gt;&amp;angle=&lt;deg&gt;</code>. Any device that answers a plain 200 to that URL and moves the matching PCA9685 channel works with this panel, unmodified &mdash; that's the entire protocol.</p>
+      <p><strong>Two ways to use it.</strong> Point <em>Device</em> at a board's IP (e.g. <code>192.168.1.50</code>) to drive it from here directly &mdash; works when this file is opened locally or from a plain <code>http://</code> page. Opened from an <code>https://</code> page (like a claude.ai link), the browser's mixed-content rule blocks calls to a plain <code>http://</code> device, so nothing will move &mdash; use the saved local copy of this file for that, or the option below.</p>
+      <p><strong>Or embed it.</strong> The button below copies this whole page as a C++ raw-string ready to paste into a <code>PROGMEM</code> constant and serve directly from the device's own web server &mdash; same-origin, so leave <em>Device</em> blank and it just works, no CORS or mixed-content issue at all. That's the pattern this panel was pulled out of.</p>
+      <pre id="snippetPreview">const char SERVO_PAGE[] PROGMEM = R"HTMLPAGE(
+...
+)HTMLPAGE";
+
+server.on("/", HTTP_GET, [](){ server.send(200, "text/html", SERVO_PAGE); });
+server.on("/servo", HTTP_GET, [](){
+  int ch = server.arg("ch").toInt();
+  int angle = server.arg("angle").toInt();
+  pwm.setServoAngle(ch, angle);   // your own PCA9685 write helper
+  server.send(200, "text/plain", "OK");
+});</pre>
+      <div class="rowline" style="margin-top:12px">
+        <button class="btn primary" id="copyEmbed">Copy as PROGMEM snippet</button>
+        <button class="btn ghost" id="copyPlain">Copy plain HTML</button>
+      </div>
+      <p style="margin-top:12px">Channel names and their min/max limits are saved in this browser automatically, per device address, so re-opening the page later remembers what you found safe last time.</p>
+    </div>
+  </details>
+
+  <footer>saved from the Rocky project &middot; reusable for any PCA9685/ESP32 build</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const channelsEl = $('channels'), logEl = $('log'), baseUrlEl = $('baseUrl');
+  const connDot = $('connDot'), connLabel = $('connLabel');
+
+  function storageKeyFor(base){
+    return 'servo-bench:' + (base || 'same-origin');
+  }
+
+  function defaultChannels(){
+    return Array.from({length:8}, (_,i) => ({ ch:i, name:'CH'+i, min:0, max:180, val:90 }));
+  }
+
+  function loadConfig(){
+    try{
+      const savedBase = localStorage.getItem('servo-bench:lastBase') || '';
+      baseUrlEl.value = savedBase;
+      const raw = localStorage.getItem(storageKeyFor(savedBase));
+      return raw ? JSON.parse(raw) : defaultChannels();
+    }catch(e){ return defaultChannels(); }
+  }
+
+  function saveConfig(){
+    try{
+      localStorage.setItem('servo-bench:lastBase', baseUrlEl.value.trim());
+      localStorage.setItem(storageKeyFor(baseUrlEl.value.trim()), JSON.stringify(state));
+    }catch(e){ /* private window / storage blocked -- fine, just not remembered */ }
+  }
+
+  let state = loadConfig();
+  let timers = {};
+
+  function log(msg, kind){
+    logEl.textContent = msg;
+    logEl.className = 'status-log' + (kind ? ' ' + kind : '');
+  }
+
+  function apiUrl(path){
+    const base = baseUrlEl.value.trim().replace(/\/$/, '');
+    return (base ? (base.match(/^https?:\/\//) ? base : 'http://' + base) : '') + path;
+  }
+
+  function render(){
+    channelsEl.innerHTML = '';
+    state.forEach((s, idx) => {
+      const row = document.createElement('div');
+      row.className = 'ch-row';
+      row.innerHTML = `
+        <input class="chname" value="${s.name}" data-idx="${idx}" spellcheck="false">
+        <input type="range" min="${s.min}" max="${s.max}" value="${s.val}" data-idx="${idx}" id="slider${idx}">
+        <span class="val" id="val${idx}">${s.val}</span>
+        <div class="range-edit">
+          <label>min</label><input type="number" value="${s.min}" data-idx="${idx}" data-field="min">
+          <label>max</label><input type="number" value="${s.max}" data-idx="${idx}" data-field="max">
+        </div>`;
+      channelsEl.appendChild(row);
+    });
+
+    channelsEl.querySelectorAll('.chname').forEach(el => {
+      el.addEventListener('change', () => {
+        state[+el.dataset.idx].name = el.value.trim() || ('CH' + el.dataset.idx);
+        saveConfig();
+      });
+    });
+
+    channelsEl.querySelectorAll('input[type=range]').forEach(el => {
+      el.addEventListener('input', () => {
+        const idx = +el.dataset.idx;
+        state[idx].val = +el.value;
+        $('val' + idx).textContent = el.value;
+        clearTimeout(timers[idx]);
+        timers[idx] = setTimeout(() => moveServo(state[idx]), 60);
+      });
+    });
+
+    channelsEl.querySelectorAll('input[data-field]').forEach(el => {
+      el.addEventListener('change', () => {
+        const idx = +el.dataset.idx, field = el.dataset.field;
+        let v = parseInt(el.value, 10);
+        if (Number.isNaN(v)) v = field === 'min' ? 0 : 180;
+        state[idx][field] = v;
+        if (state[idx].min > state[idx].max) [state[idx].min, state[idx].max] = [state[idx].max, state[idx].min];
+        saveConfig();
+        render();
+      });
+    });
+  }
+
+  function moveServo(s){
+    fetch(apiUrl(`/servo?ch=${s.ch}&angle=${s.val}`))
+      .then(r => { log(`ch ${s.ch} (${s.name}) -> ${s.val}°  [HTTP ${r.status}]`, r.ok ? 'ok' : 'err'); })
+      .catch(e => log(`ch ${s.ch} (${s.name}) failed: ${e.message}`, 'err'));
+    saveConfig();
+  }
+
+  function checkConnection(){
+    connDot.className = 'dot';
+    connLabel.textContent = 'Checking…';
+    fetch(apiUrl('/'), { method: 'GET', cache: 'no-store' })
+      .then(() => { connDot.className = 'dot ok'; connLabel.textContent = 'Device reachable'; })
+      .catch(e => {
+        connDot.className = 'dot bad';
+        connLabel.textContent = baseUrlEl.value.trim()
+          ? 'Unreachable — check the address, or this is an https page blocked from http (see notes below)'
+          : 'No device IP set — fine if this page is served by the device itself';
+      });
+  }
+
+  $('checkBtn').addEventListener('click', checkConnection);
+  baseUrlEl.addEventListener('change', () => { state = loadConfig.call(null) || state; render(); checkConnection(); });
+
+  $('addCh').addEventListener('click', () => {
+    const nextCh = state.length ? Math.max(...state.map(s => s.ch)) + 1 : 0;
+    state.push({ ch: nextCh, name: 'CH' + nextCh, min: 0, max: 180, val: 90 });
+    saveConfig(); render();
+  });
+
+  $('resetCh').addEventListener('click', () => {
+    if (!confirm('Reset to 8 default channels? This clears saved names and ranges for this device.')) return;
+    state = defaultChannels(); saveConfig(); render();
+  });
+
+  function copyText(text, okMsg){
+    navigator.clipboard.writeText(text).then(
+      () => log(okMsg, 'ok'),
+      () => log('Could not copy — your browser may need a click-triggered copy; try again.', 'err')
+    );
+  }
+
+  $('copyPlain').addEventListener('click', () => {
+    copyText('<!DOCTYPE html>\n' + document.documentElement.outerHTML, 'Full page HTML copied.');
+  });
+
+  $('copyEmbed').addEventListener('click', () => {
+    const html = ('<!DOCTYPE html>\n' + document.documentElement.outerHTML).replace(/\)HTMLPAGE"/g, ') HTMLPAGE"');
+    const wrapped = `const char SERVO_PAGE[] PROGMEM = R"HTMLPAGE(\n${html}\n)HTMLPAGE";\n\n// server.on("/", HTTP_GET, [](){ server.send(200, "text/html", SERVO_PAGE); });\n// server.on("/servo", HTTP_GET, [](){\n//   int ch = server.arg("ch").toInt();\n//   int angle = server.arg("angle").toInt();\n//   pwm.setServoAngle(ch, angle);\n//   server.send(200, "text/plain", "OK");\n// });`;
+    copyText(wrapped, 'PROGMEM snippet copied — paste into your firmware.');
+  });
+
+  render();
+  if (baseUrlEl.value.trim()) checkConnection();
+})();
+</script>
+</body>
+</html>

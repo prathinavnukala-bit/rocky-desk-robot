@@ -1,0 +1,14 @@
+# personal data - never commit
+rocky_memory.db*
+memory.json
+faces.json
+*.wav
+*.jpg
+recording.*
+# large downloadable model files
+models/
+voices/*.onnx
+# environments / caches
+.stt-venv/
+__pycache__/
+.DS_Store
