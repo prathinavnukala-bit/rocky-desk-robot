@@ -2592,16 +2592,30 @@ def run():
     body.send_command("dead")
 
     print("\nRocky is listening continuously. Press Ctrl+C to stop.")
+    failures = 0
     while True:
         try:
             listen_and_respond()
+            failures = 0
         except KeyboardInterrupt:
             print("\nGoodnight.")
             break
         except Exception as e:
             # One bad turn (camera hiccup, serial timeout, etc.) shouldn't kill
             # the whole session.
-            print(f"Error during turn: {e}")
+            # Back off while the failures keep coming. With the body board
+            # offline (Errno 64 "Host is down" fails instantly) this loop
+            # used to spin with no pause at all -- confirmed live: 19,190
+            # "Error during turn" lines in one session, each pass
+            # re-scanning the whole subnet, pegging network/CPU and burying
+            # the real log. Recovery is unaffected: the next successful
+            # connection resets the counter, and the reboot-greeting logic
+            # picks the board back up on its own.
+            failures += 1
+            delay = min(2 ** min(failures, 5), 30)
+            if failures <= 3 or failures % 10 == 0:
+                print(f"Error during turn ({failures} in a row, retrying in {delay}s): {e}")
+            time.sleep(delay)
 
 if __name__ == "__main__":
     run()

@@ -32,6 +32,21 @@ VALID_COMMANDS = (
 )
 
 
+def _reconnect_quietly():
+    """esp_link.reconnect() raises ConnectionError when the board is
+    unreachable. Every caller here calls it from inside an error handler
+    whose whole contract is "return False, never raise" -- so an offline
+    board used to escape as an unhandled exception instead (confirmed live:
+    brain.py crashed at startup on its boot-greeting wave, and a speech
+    worker thread died the same way, whenever the board was down). The next
+    real command reconnects on its own, so failing here is harmless."""
+    try:
+        return esp_link.reconnect()
+    except Exception as e:
+        print(f"(board unreachable, will retry on next command: {e})")
+        return None
+
+
 def _wait_for_ready(ser, timeout_s=15):
     """Blocks until the ESP32's "Ready." response for the command just sent,
     reading (and discarding) anything in between. Movement commands wait for
@@ -80,7 +95,7 @@ def send_commands(commands, _retry=True):
                 # (see esp_link.reconnect's docstring for the confirmed
                 # failure mode this prevents).
                 print(f"Body command '{command}' timed out -- reconnecting.")
-                esp_link.reconnect()
+                _reconnect_quietly()
                 if _retry:
                     print(f"Retrying body command(s) {commands} once after reconnect.")
                     return send_commands(commands, _retry=False)
@@ -88,7 +103,7 @@ def send_commands(commands, _retry=True):
         return True
     except Exception as e:
         print(f"Body command failed: {e}")
-        esp_link.reconnect()
+        _reconnect_quietly()
         if _retry:
             print(f"Retrying body command(s) {commands} once after reconnect.")
             return send_commands(commands, _retry=False)
@@ -124,11 +139,11 @@ def _volume_command(command, _retry=True):
                     pass
             if line == "Ready." and value is not None:
                 return value   # a bare "Ready." with no VOLUME line is a stale one from an earlier command
-        esp_link.reconnect()
+        _reconnect_quietly()
         return _volume_command(command, False) if (value is None and _retry) else value
     except Exception as e:
         print(f"Volume command failed: {e}")
-        esp_link.reconnect()
+        _reconnect_quietly()
         return _volume_command(command, False) if _retry else None
 
 
@@ -185,7 +200,7 @@ def _set_expression(expr, _retry):
         return True
     except Exception as e:
         print(f"Expression command failed: {e}")
-        esp_link.reconnect()
+        _reconnect_quietly()
         if _retry:
             # This is the fallback callers reach for specifically when a
             # pose command like "dead" already failed and retried once --
@@ -227,7 +242,7 @@ def say_caption(text, duration_ms):
         return True
     except Exception as e:
         print(f"Caption command failed: {e}")
-        esp_link.reconnect()
+        _reconnect_quietly()
         return False
 
 
@@ -327,5 +342,5 @@ def play_speech(text, wav_path, max_attempts=3):
         except Exception as e:
             print(f"Speech playback failed (attempt {attempt}/{max_attempts}): {e}")
 
-    esp_link.reconnect()  # leave a clean connection behind even after giving up
+    _reconnect_quietly()  # leave a clean connection behind even after giving up
     return False

@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
   <key>Label</key><string>com.rocky.brain</string>
-  <key>WorkingDirectory</key><string>/Users/prathinavnukala/Documents/PlatformIO/Projects/RockyBrain</string>
+  <key>WorkingDirectory</key><string>/path/to/rocky-desk-robot/brain</string>
   <key>ProgramArguments</key>
   <array>
     <string>/usr/bin/caffeinate</string><string>-ims</string>
