@@ -2,6 +2,8 @@
 
 A 3D-printed quadruped that hears "Hey Rocky", talks back, recognises people, sees objects, remembers what you told it and moves. The ESP32-S3 body handles motion, the face and audio; a laptop-side "brain" runs **fully local AI models** (no cloud) and talks to the body over Wi-Fi.
 
+Inspired by Rocky, the alien engineer from *Project Hail Mary*: it even answers like him, short, blunt and technical.
+
 <!-- DEMO: add the demo video (YouTube / GIF) here once recorded -->
 
 ![Rocky's OLED face panel (CAD)](firmware/enclosure/rocky_face_panel_preview.png)
