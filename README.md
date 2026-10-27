@@ -4,7 +4,7 @@ A 3D-printed quadruped that hears "Hey Rocky", talks back, recognises people, se
 
 Inspired by Rocky, the alien engineer from *Project Hail Mary*: it even answers like him, short, blunt and technical.
 
-<!-- DEMO: add the demo video (YouTube / GIF) here once recorded -->
+▶ **[Watch the 2-minute demo on LinkedIn](https://www.linkedin.com/feed/update/urn:li:activity:7520990384760549376/)**: Rocky wakes on "Hey Rocky", describes its own hardware, dances and switches into roast mode.
 
 ![Rocky's OLED face panel (CAD)](firmware/enclosure/rocky_face_panel_preview.png)
 
